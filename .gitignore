@@ -1,0 +1,44 @@
+# dependencies
+/node_modules
+.pnpm-store
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+pnpm-debug.log*
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# prisma
+/prisma/generated
+
+# postgres local de dev (npm run db:local)
+/.pgdata
+
+# tests
+/coverage
+/playwright-report
+/test-results
+
+# claude code local settings
+.claude/settings.local.json

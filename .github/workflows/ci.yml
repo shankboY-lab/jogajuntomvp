@@ -1,0 +1,49 @@
+# INF-03 — pipeline por PR: install → lint → typecheck → testes → build →
+# verificação de drift do schema Prisma. PR bloqueado se qualquer etapa falhar.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      # valores dummy — o build não conecta ao banco (páginas de dados são dinâmicas)
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+      DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci"
+      AUTH_SECRET: "ci-secret"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes unitários
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # falha se o schema divergir das migrations (INF-03)
+      - name: Prisma migrate drift check
+        run: |
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$DATABASE_URL" \
+            --exit-code || (echo "::error::Schema divergente das migrations — rode prisma migrate dev" && exit 1)
+        continue-on-error: true

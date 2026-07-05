@@ -1,0 +1,206 @@
+// JogaJunto MVP — DB-01/DB-02
+// Modelo de dados da seção 3 da doc técnica.
+// Invariante extra (CHECK user_lo_id < user_hi_id em matches) e a view funnel_daily
+// vivem na migration SQL (Prisma não expressa CHECK/VIEW).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum IntentStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?   @map("password_hash") // null se só Google (RF-01/02)
+  emailVerified DateTime? @map("email_verified")
+  name          String?
+  image         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  profile          Profile?
+  accounts         Account[]
+  games            UserGame[]
+  intents          PlayIntent[]
+  sentRequests     InterestRequest[] @relation("sent")
+  receivedRequests InterestRequest[] @relation("received")
+  matchesAsLo      Match[]           @relation("matchLo")
+  matchesAsHi      Match[]           @relation("matchHi")
+  events           Event[]
+
+  @@map("users")
+}
+
+// OAuth (padrão Auth.js)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Profile {
+  userId            String    @id @map("user_id")
+  displayName       String    @map("display_name")
+  photoUrl          String?   @map("photo_url")
+  city              String
+  neighborhood      String?
+  lat               Float // NUNCA exposto via API (RNF-07)
+  lng               Float // NUNCA exposto via API (RNF-07)
+  radiusKm          Int       @default(5) @map("radius_km") // 2|5|10|25 (RF-09)
+  whatsapp          String? // E.164; >=1 canal obrigatório
+  telegram          String? // username
+  locationConsentAt DateTime? @map("location_consent_at") // LGPD (RF-27)
+  completedAt       DateTime? @map("completed_at") // dirige RF-04
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lat, lng])
+  @@map("profiles")
+}
+
+// cache canônico BGG (RF-13)
+model Game {
+  bggId         Int      @id @map("bgg_id")
+  name          String
+  yearPublished Int?     @map("year_published")
+  thumbnailUrl  String?  @map("thumbnail_url")
+  cachedAt      DateTime @default(now()) @map("cached_at")
+
+  userGames UserGame[]
+  intents   PlayIntent[]
+
+  @@map("games")
+}
+
+// coleção (RF-14)
+model UserGame {
+  userId  String   @map("user_id")
+  bggId   Int      @map("bgg_id")
+  addedAt DateTime @default(now()) @map("added_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [bggId], references: [bggId], onDelete: Cascade)
+
+  @@id([userId, bggId])
+  @@map("user_games")
+}
+
+// "quero jogar" (RF-21)
+model PlayIntent {
+  id        String       @id @default(cuid())
+  userId    String       @map("user_id")
+  bggId     Int          @map("bgg_id")
+  status    IntentStatus @default(ACTIVE)
+  expiresAt DateTime     @map("expires_at") // premissa: now()+7d
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [bggId], references: [bggId], onDelete: Cascade)
+
+  @@unique([userId, bggId])
+  @@index([bggId, status, expiresAt])
+  @@map("play_intents")
+}
+
+// pedido "quero jogar com você" (RF-22/23)
+model InterestRequest {
+  id         String        @id @default(cuid())
+  fromUserId String        @map("from_user_id")
+  toUserId   String        @map("to_user_id")
+  bggId      Int           @map("bgg_id")
+  status     RequestStatus @default(PENDING)
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  fromUser User @relation("sent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("received", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId, bggId]) // idempotência
+  @@index([toUserId, status])
+  @@map("interest_requests")
+}
+
+// aceite mútuo (RF-24) — userLoId < userHiId (CHECK na migration) garante unicidade do par
+model Match {
+  id        String   @id @default(cuid())
+  userLoId  String   @map("user_lo_id")
+  userHiId  String   @map("user_hi_id")
+  bggId     Int      @map("bgg_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  userLo User @relation("matchLo", fields: [userLoId], references: [id], onDelete: Cascade)
+  userHi User @relation("matchHi", fields: [userHiId], references: [id], onDelete: Cascade)
+
+  @@unique([userLoId, userHiId, bggId])
+  @@map("matches")
+}
+
+// funil (RF-26, RNF-10)
+model Event {
+  id        BigInt   @id @default(autoincrement())
+  userId    String?  @map("user_id") // anonimizado na exclusão de conta
+  name      String // enum documentado em src/server/events/names.ts (BE-16)
+  props     Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([name, createdAt])
+  @@map("events")
+}
+
+model BggSearchCache {
+  queryNorm String   @id @map("query_norm") // termo normalizado (lower/trim)
+  payload   Json
+  cachedAt  DateTime @default(now()) @map("cached_at") // TTL 24h
+
+  @@map("bgg_search_cache")
+}
+
+// BE-07 — cache Nominatim (forward e reverse), TTL 30 dias
+model GeocodeCache {
+  key      String   @id // "q:<termo>" ou "r:<lat>,<lng>" (3 casas)
+  payload  Json
+  cachedAt DateTime @default(now()) @map("cached_at")
+
+  @@map("geocode_cache")
+}
+
+// BE-08/INF-06 — token bucket distribuído (Postgres) p/ BGG, Nominatim e rate limit por IP
+model RateLimitBucket {
+  key       String   @id
+  tokens    Float
+  updatedAt DateTime @map("updated_at")
+
+  @@map("rate_limit_buckets")
+}

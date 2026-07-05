@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "jogajunto-dev",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": [
+        "/c",
+        "set PATH=C:\\Users\\rodri\\AppData\\Local\\nodejs;%PATH% && npm run dev"
+      ],
+      "port": 3000
+    }
+  ]
+}

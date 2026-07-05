@@ -1,0 +1,152 @@
+<svg viewBox="0 0 1180 780" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#555"/>
+    </marker>
+    <marker id="arrowO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#E8622C"/>
+    </marker>
+  </defs>
+
+  <rect width="1180" height="780" fill="#FDF8F3"/>
+  <text x="40" y="46" font-size="24" font-weight="700" fill="#2A2A2A">JogaJunto MVP — Arquitetura Macro (Web responsivo, mobile-first)</text>
+  <text x="40" y="70" font-size="13" fill="#777">Next.js full-stack TypeScript · PostgreSQL · Integração BGG server-side · Match por aceite mútuo</text>
+
+  <!-- CLIENTE -->
+  <rect x="40" y="100" width="240" height="270" rx="12" fill="#FFFFFF" stroke="#E8622C" stroke-width="2"/>
+  <text x="60" y="130" font-size="15" font-weight="700" fill="#E8622C">CLIENTE (Browser)</text>
+  <text x="60" y="152" font-size="12" fill="#444">Web app responsivo</text>
+  <text x="60" y="169" font-size="12" fill="#444">mobile-first (390px base)</text>
+  <text x="60" y="186" font-size="12" fill="#444">+ breakpoints desktop</text>
+  <rect x="60" y="200" width="200" height="76" rx="8" fill="#FFF3EA"/>
+  <text x="72" y="222" font-size="12" font-weight="600" fill="#2A2A2A">React 19 (RSC + client)</text>
+  <text x="72" y="240" font-size="11.5" fill="#555">Tailwind CSS (tokens Figma)</text>
+  <text x="72" y="257" font-size="11.5" fill="#555">TanStack Query · Zod</text>
+  <rect x="60" y="288" width="200" height="62" rx="8" fill="#FFF3EA"/>
+  <text x="72" y="309" font-size="11.5" fill="#555">Geolocation API (consent)</text>
+  <text x="72" y="326" font-size="11.5" fill="#555">Deep links wa.me / t.me</text>
+  <text x="72" y="343" font-size="11.5" fill="#555">(somente pós-match)</text>
+
+  <!-- VERCEL / NEXT -->
+  <rect x="340" y="100" width="480" height="560" rx="12" fill="#FFFFFF" stroke="#2A2A2A" stroke-width="1.5"/>
+  <text x="360" y="130" font-size="15" font-weight="700" fill="#2A2A2A">VERCEL — Next.js 15 (TypeScript ponta a ponta)</text>
+
+  <rect x="360" y="146" width="440" height="96" rx="8" fill="#F4F0FB" stroke="#8B6FC7" stroke-width="1"/>
+  <text x="376" y="168" font-size="13" font-weight="700" fill="#5B3FA3">Frontend — App Router</text>
+  <text x="376" y="188" font-size="11.5" fill="#444">Rotas: /login · /cadastro · /perfil/configurar · /home · /busca/[bggId]</text>
+  <text x="376" y="205" font-size="11.5" fill="#444">/convites · /match/[id] · /conta · /termos · /privacidade</text>
+  <text x="376" y="224" font-size="11.5" fill="#666">SSR + client components · estados vazio/carregando/erro (RNF-03)</text>
+
+  <rect x="360" y="256" width="440" height="66" rx="8" fill="#FDEDE4" stroke="#E8622C" stroke-width="1"/>
+  <text x="376" y="278" font-size="13" font-weight="700" fill="#C74E1D">Middleware (edge)</text>
+  <text x="376" y="297" font-size="11.5" fill="#444">Guard de sessão + roteamento por estado da conta (RF-04):</text>
+  <text x="376" y="313" font-size="11.5" fill="#444">perfil incompleto → /perfil/configurar · completo → /home</text>
+
+  <rect x="360" y="336" width="440" height="304" rx="8" fill="#EDF5EF" stroke="#3E8E5A" stroke-width="1"/>
+  <text x="376" y="358" font-size="13" font-weight="700" fill="#2C6B43">Backend — API Route Handlers (/app/api)</text>
+
+  <rect x="376" y="372" width="200" height="56" rx="6" fill="#FFFFFF" stroke="#BBB"/>
+  <text x="388" y="391" font-size="12" font-weight="600" fill="#2A2A2A">Auth (Auth.js v5)</text>
+  <text x="388" y="407" font-size="10.5" fill="#555">Google OAuth · e-mail/senha</text>
+  <text x="388" y="421" font-size="10.5" fill="#555">argon2id · JWT · logout</text>
+
+  <rect x="588" y="372" width="196" height="56" rx="6" fill="#FFFFFF" stroke="#BBB"/>
+  <text x="600" y="391" font-size="12" font-weight="600" fill="#2A2A2A">Perfil &amp; Coleção</text>
+  <text x="600" y="407" font-size="10.5" fill="#555">CRUD perfil · foto · consent</text>
+  <text x="600" y="421" font-size="10.5" fill="#555">user_games (ID BGG canônico)</text>
+
+  <rect x="376" y="440" width="200" height="70" rx="6" fill="#FFFFFF" stroke="#E8622C" stroke-width="1.5"/>
+  <text x="388" y="459" font-size="12" font-weight="600" fill="#C74E1D">BGG Proxy</text>
+  <text x="388" y="474" font-size="10.5" fill="#555">fila rate-limit ~5s · single-flight</text>
+  <text x="388" y="488" font-size="10.5" fill="#555">retry/backoff 500/503 · XML→JSON</text>
+  <text x="388" y="502" font-size="10.5" fill="#555">cache Postgres TTL 24h</text>
+
+  <rect x="588" y="440" width="196" height="70" rx="6" fill="#FFFFFF" stroke="#BBB"/>
+  <text x="600" y="459" font-size="12" font-weight="600" fill="#2A2A2A">Busca &amp; Matching</text>
+  <text x="600" y="474" font-size="10.5" fill="#555">modos A/B · haversine + raio</text>
+  <text x="600" y="488" font-size="10.5" fill="#555">intents · interesse · aceite mútuo</text>
+  <text x="600" y="502" font-size="10.5" fill="#555">match idempotente (transação)</text>
+
+  <rect x="376" y="522" width="200" height="56" rx="6" fill="#FFFFFF" stroke="#BBB"/>
+  <text x="388" y="541" font-size="12" font-weight="600" fill="#2A2A2A">Contato pós-match</text>
+  <text x="388" y="556" font-size="10.5" fill="#555">valida match → links wa.me/t.me</text>
+  <text x="388" y="570" font-size="10.5" fill="#555">nunca expõe contato antes (RNF-09)</text>
+
+  <rect x="588" y="522" width="196" height="56" rx="6" fill="#FFFFFF" stroke="#BBB"/>
+  <text x="600" y="541" font-size="12" font-weight="600" fill="#2A2A2A">Events (funil)</text>
+  <text x="600" y="556" font-size="10.5" fill="#555">RNF-10: busca, zero-result,</text>
+  <text x="600" y="570" font-size="10.5" fill="#555">interesse, match, contato</text>
+
+  <text x="376" y="600" font-size="11" fill="#666">Conta/LGPD: exclusão em cascata (RF-28) · Geocoding server-side (cidade/bairro ↔ lat/lng)</text>
+  <text x="376" y="618" font-size="11" fill="#666">Zod validation em todas as rotas · rate limit por IP · security headers</text>
+
+  <!-- BANCO -->
+  <rect x="880" y="100" width="260" height="300" rx="12" fill="#FFFFFF" stroke="#1E6FB8" stroke-width="2"/>
+  <text x="900" y="130" font-size="15" font-weight="700" fill="#1E6FB8">POSTGRESQL (gerenciado)</text>
+  <text x="900" y="150" font-size="12" fill="#444">Prisma ORM · migrations</text>
+  <rect x="900" y="164" width="220" height="216" rx="8" fill="#EFF6FC"/>
+  <text x="912" y="185" font-size="11.5" fill="#333">users · accounts · sessions</text>
+  <text x="912" y="204" font-size="11.5" fill="#333">profiles (lat/lng, raio, contato)</text>
+  <text x="912" y="223" font-size="11.5" fill="#333">games (cache BGG: id, nome,</text>
+  <text x="912" y="239" font-size="11.5" fill="#333">ano, thumbnail)</text>
+  <text x="912" y="258" font-size="11.5" fill="#333">user_games (coleção)</text>
+  <text x="912" y="277" font-size="11.5" fill="#333">play_intents (expira ~7d)</text>
+  <text x="912" y="296" font-size="11.5" fill="#333">interest_requests (estado)</text>
+  <text x="912" y="315" font-size="11.5" fill="#333">matches (par único + jogo)</text>
+  <text x="912" y="334" font-size="11.5" fill="#333">events (funil analytics)</text>
+  <text x="912" y="353" font-size="11.5" fill="#333">bgg_search_cache (TTL)</text>
+
+  <!-- EXTERNOS -->
+  <rect x="880" y="430" width="260" height="230" rx="12" fill="#FFFFFF" stroke="#999" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="900" y="460" font-size="15" font-weight="700" fill="#555">SERVIÇOS EXTERNOS</text>
+  <rect x="900" y="476" width="220" height="34" rx="6" fill="#FBF6EE"/>
+  <text x="912" y="498" font-size="11.5" fill="#333">Google OAuth (RF-01)</text>
+  <rect x="900" y="516" width="220" height="46" rx="6" fill="#FBF6EE"/>
+  <text x="912" y="534" font-size="11.5" fill="#333">BGG XML API2 (search + thing)</text>
+  <text x="912" y="550" font-size="10.5" fill="#777">boardgamegeek.com (sem www)</text>
+  <rect x="900" y="568" width="220" height="34" rx="6" fill="#FBF6EE"/>
+  <text x="912" y="590" font-size="11.5" fill="#333">Nominatim (geocoding, cache)</text>
+  <rect x="900" y="608" width="220" height="40" rx="6" fill="#FBF6EE"/>
+  <text x="912" y="625" font-size="11.5" fill="#333">Vercel Blob (fotos) · Sentry</text>
+  <text x="912" y="641" font-size="10.5" fill="#777">observabilidade + erros</text>
+
+  <!-- WHATSAPP/TELEGRAM -->
+  <rect x="40" y="430" width="240" height="110" rx="12" fill="#FFFFFF" stroke="#3E8E5A" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="60" y="460" font-size="14" font-weight="700" fill="#2C6B43">WhatsApp / Telegram</text>
+  <text x="60" y="482" font-size="11.5" fill="#444">Conversa acontece fora do app</text>
+  <text x="60" y="500" font-size="11.5" fill="#444">via deep link, aberto pelo cliente</text>
+  <text x="60" y="518" font-size="11.5" fill="#444">apenas após match (RF-25)</text>
+
+  <!-- SETAS -->
+  <line x1="280" y1="200" x2="340" y2="200" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="284" y="190" font-size="10.5" fill="#555">HTTPS</text>
+  <line x1="340" y1="230" x2="280" y2="230" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="284" y="248" font-size="10.5" fill="#555">HTML/JSON</text>
+
+  <line x1="160" y1="370" x2="160" y2="430" stroke="#3E8E5A" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="168" y="404" font-size="10.5" fill="#2C6B43">deep link pós-match</text>
+
+  <line x1="820" y1="250" x2="880" y2="250" stroke="#1E6FB8" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="880" y1="280" x2="820" y2="280" stroke="#1E6FB8" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="826" y="242" font-size="10.5" fill="#1E6FB8">Prisma (SQL)</text>
+
+  <line x1="820" y1="493" x2="900" y2="493" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="824" y="485" font-size="10" fill="#555">OAuth</text>
+  <line x1="820" y1="539" x2="900" y2="539" stroke="#E8622C" stroke-width="2" marker-end="url(#arrowO)"/>
+  <text x="824" y="531" font-size="10" fill="#C74E1D">XML · ~5s</text>
+  <line x1="820" y1="585" x2="900" y2="585" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="820" y1="625" x2="900" y2="625" stroke="#555" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- LEGENDA -->
+  <rect x="40" y="580" width="240" height="150" rx="12" fill="#FFF3EA"/>
+  <text x="60" y="608" font-size="13" font-weight="700" fill="#C74E1D">Princípios da arquitetura</text>
+  <text x="60" y="630" font-size="11" fill="#444">1. BGG só server-side (RNF-05)</text>
+  <text x="60" y="648" font-size="11" fill="#444">2. Coordenadas nunca saem do</text>
+  <text x="60" y="663" font-size="11" fill="#444">    backend — só distância aprox.</text>
+  <text x="60" y="681" font-size="11" fill="#444">3. Contato só pós-match (RNF-09)</text>
+  <text x="60" y="699" font-size="11" fill="#444">4. Eventos de funil desde o dia 1</text>
+  <text x="60" y="717" font-size="11" fill="#444">5. Monólito modular = 1 deploy</text>
+
+  <text x="340" y="700" font-size="11.5" fill="#777">Fluxo crítico: login/cadastro → configurar perfil (BGG) → home → busca (modo A ou B) → interesse → match → contato</text>
+  <text x="340" y="720" font-size="11.5" fill="#999">Fonte: PRD MVP v2 + Figma "MVP - JogaJunto" (9 telas v2-01 a v2-09)</text>
+</svg>
