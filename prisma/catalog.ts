@@ -1,0 +1,73 @@
+// Catálogo estático de jogos populares (bggId canônico — RF-13).
+// Usado pelo seed de produção como fallback enquanto a BGG XML API2 bloqueia
+// IPs de datacenter (Vercel). Quando a BGG responde, ensureGames() corrige/
+// enriquece nome, ano e capa automaticamente (upsert por bggId).
+
+export interface CatalogGame {
+  bggId: number;
+  name: string;
+  yearPublished: number;
+}
+
+export const CATALOG: CatalogGame[] = [
+  { bggId: 13, name: "Catan", yearPublished: 1995 },
+  { bggId: 822, name: "Carcassonne", yearPublished: 2000 },
+  { bggId: 9209, name: "Ticket to Ride", yearPublished: 2004 },
+  { bggId: 14996, name: "Ticket to Ride: Europe", yearPublished: 2005 },
+  { bggId: 30549, name: "Pandemic", yearPublished: 2008 },
+  { bggId: 36218, name: "Dominion", yearPublished: 2008 },
+  { bggId: 68448, name: "7 Wonders", yearPublished: 2010 },
+  { bggId: 173346, name: "7 Wonders Duel", yearPublished: 2015 },
+  { bggId: 129622, name: "Love Letter", yearPublished: 2012 },
+  { bggId: 148228, name: "Splendor", yearPublished: 2014 },
+  { bggId: 167791, name: "Terraforming Mars", yearPublished: 2016 },
+  { bggId: 169786, name: "Scythe", yearPublished: 2016 },
+  { bggId: 174430, name: "Gloomhaven", yearPublished: 2017 },
+  { bggId: 291457, name: "Gloomhaven: Jaws of the Lion", yearPublished: 2020 },
+  { bggId: 178900, name: "Codenames", yearPublished: 2015 },
+  { bggId: 224517, name: "Brass: Birmingham", yearPublished: 2018 },
+  { bggId: 230802, name: "Azul", yearPublished: 2017 },
+  { bggId: 266192, name: "Wingspan", yearPublished: 2019 },
+  { bggId: 342942, name: "Ark Nova", yearPublished: 2021 },
+  { bggId: 316554, name: "Dune: Imperium", yearPublished: 2020 },
+  { bggId: 162886, name: "Spirit Island", yearPublished: 2017 },
+  { bggId: 12333, name: "Twilight Struggle", yearPublished: 2005 },
+  { bggId: 31260, name: "Agricola", yearPublished: 2007 },
+  { bggId: 3076, name: "Puerto Rico", yearPublished: 2002 },
+  { bggId: 2651, name: "Power Grid", yearPublished: 2004 },
+  { bggId: 84876, name: "The Castles of Burgundy", yearPublished: 2011 },
+  { bggId: 70323, name: "King of Tokyo", yearPublished: 2011 },
+  { bggId: 124361, name: "Concordia", yearPublished: 2013 },
+  { bggId: 96848, name: "Mage Knight Board Game", yearPublished: 2011 },
+  { bggId: 120677, name: "Terra Mystica", yearPublished: 2012 },
+  { bggId: 220308, name: "Gaia Project", yearPublished: 2017 },
+  { bggId: 199792, name: "Everdell", yearPublished: 2018 },
+  { bggId: 237182, name: "Root", yearPublished: 2018 },
+  { bggId: 161936, name: "Pandemic Legacy: Season 1", yearPublished: 2015 },
+  { bggId: 182028, name: "Through the Ages: A New Story of Civilization", yearPublished: 2015 },
+  { bggId: 193738, name: "Great Western Trail", yearPublished: 2016 },
+  { bggId: 183394, name: "Viticulture Essential Edition", yearPublished: 2015 },
+  { bggId: 244521, name: "The Quacks of Quedlinburg", yearPublished: 2018 },
+  { bggId: 295947, name: "Cascadia", yearPublished: 2021 },
+  { bggId: 39856, name: "Dixit", yearPublished: 2008 },
+  { bggId: 92828, name: "Dixit Odyssey", yearPublished: 2011 },
+  { bggId: 98778, name: "Hanabi", yearPublished: 2010 },
+  { bggId: 131357, name: "Coup", yearPublished: 2012 },
+  { bggId: 41114, name: "The Resistance", yearPublished: 2009 },
+  { bggId: 128882, name: "The Resistance: Avalon", yearPublished: 2012 },
+  { bggId: 143884, name: "Machi Koro", yearPublished: 2012 },
+  { bggId: 244992, name: "The Mind", yearPublished: 2018 },
+  { bggId: 284083, name: "The Crew: The Quest for Planet Nine", yearPublished: 2019 },
+  { bggId: 172225, name: "Exploding Kittens", yearPublished: 2015 },
+  { bggId: 181304, name: "Mysterium", yearPublished: 2015 },
+  { bggId: 156129, name: "Deception: Murder in Hong Kong", yearPublished: 2014 },
+  { bggId: 34635, name: "Stone Age", yearPublished: 2008 },
+  { bggId: 110327, name: "Lords of Waterdeep", yearPublished: 2012 },
+  { bggId: 50, name: "Lost Cities", yearPublished: 1999 },
+  { bggId: 2223, name: "UNO", yearPublished: 1971 },
+  { bggId: 1406, name: "Monopoly", yearPublished: 1935 },
+  { bggId: 181, name: "Risk", yearPublished: 1959 },
+  { bggId: 171, name: "Chess", yearPublished: 1475 },
+  { bggId: 2453, name: "Blokus", yearPublished: 2000 },
+  { bggId: 148949, name: "Istanbul", yearPublished: 2014 },
+];

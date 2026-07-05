@@ -75,6 +75,20 @@ export function normalizeQuery(q: string): string {
   return q.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/**
+ * Fallback quando a BGG está indisponível (ela bloqueia IPs de datacenter —
+ * inclusive Vercel): busca no catálogo local `games`, populado pelo seed
+ * (scripts/seed-catalog.ts) e enriquecido a cada resposta real da BGG.
+ */
+async function searchLocalCatalog(queryNorm: string): Promise<BggSearchItem[]> {
+  const games = await prisma.game.findMany({
+    where: { name: { contains: queryNorm, mode: "insensitive" } },
+    orderBy: { name: "asc" },
+    take: 20,
+  });
+  return games.map((g) => ({ bggId: g.bggId, name: g.name, yearPublished: g.yearPublished }));
+}
+
 /** BE-08 — busca com cache Postgres (TTL 24h) + single-flight + fila 5s. */
 export async function bggSearch(rawQuery: string): Promise<BggSearchItem[]> {
   const queryNorm = normalizeQuery(rawQuery);
@@ -86,8 +100,18 @@ export async function bggSearch(rawQuery: string): Promise<BggSearchItem[]> {
   }
 
   return singleFlight(`search:${queryNorm}`, async () => {
-    const params = new URLSearchParams({ query: queryNorm, type: "boardgame" });
-    const xml = await bggFetch(`/search?${params.toString()}`);
+    let xml: string;
+    try {
+      const params = new URLSearchParams({ query: queryNorm, type: "boardgame" });
+      xml = await bggFetch(`/search?${params.toString()}`);
+    } catch (err) {
+      // BGG fora → tenta o catálogo local; sem resultado local, propaga o 503
+      if (err instanceof BggUnavailableError) {
+        const local = await searchLocalCatalog(queryNorm);
+        if (local.length > 0) return local;
+      }
+      throw err;
+    }
     const items = parseBggSearch(xml);
     await prisma.bggSearchCache.upsert({
       where: { queryNorm },
