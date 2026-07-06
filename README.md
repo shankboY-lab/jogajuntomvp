@@ -36,17 +36,18 @@ Google OAuth é opcional em dev — configure `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECR
 
 ### 3. Scripts
 
-| Script                       | O que faz                                             |
-| ---------------------------- | ----------------------------------------------------- |
-| `npm run dev`                | dev server                                            |
-| `npm run build` / `start`    | build e produção                                      |
-| `npm run lint` / `typecheck` | ESLint / `tsc --noEmit`                               |
-| `npm test`                   | testes unitários (Vitest)                             |
-| `npm run db:migrate:dev`     | cria/aplica migration em dev                          |
-| `npm run db:seed`            | seed de desenvolvimento (DB-06)                       |
-| `npm run db:local`           | Postgres embutido de dev, sem Docker (localhost:5433) |
-| `npm run db:studio`          | Prisma Studio                                         |
-| `npx tsx scripts/funnel.ts`  | consulta o funil (`funnel_daily`) por SQL             |
+| Script                                | O que faz                                                |
+| ------------------------------------- | -------------------------------------------------------- |
+| `npm run dev`                         | dev server                                               |
+| `npm run build` / `start`             | build e produção                                         |
+| `npm run lint` / `typecheck`          | ESLint / `tsc --noEmit`                                  |
+| `npm test`                            | testes unitários (Vitest)                                |
+| `npm run db:migrate:dev`              | cria/aplica migration em dev                             |
+| `npm run db:seed`                     | seed de desenvolvimento (DB-06)                          |
+| `npm run db:local`                    | Postgres embutido de dev, sem Docker (localhost:5433)    |
+| `npm run db:studio`                   | Prisma Studio                                            |
+| `npx tsx scripts/funnel.ts`           | consulta o funil (`funnel_daily`) por SQL                |
+| `npx tsx scripts/import-games-csv.ts` | importa `prisma/games.csv` no catálogo (só insere novos) |
 
 > **Nota BGG:** a XML API2 do BoardGameGeek bloqueia IPs de datacenter/cloud
 > (401/403 via Cloudflare). Em rede residencial e na Vercel costuma funcionar;
