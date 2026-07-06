@@ -57,13 +57,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    // BE-01/BE-04 — claims userId + profileComplete no JWT; atualizado via
-    // session.update() quando o perfil é salvo (trigger === "update").
+    // BE-01/BE-04 — claims userId + profileComplete no JWT.
+    // Revalida no banco enquanto o claim for false (além do trigger update):
+    // qualquer leitura de sessão re-emite o cookie corrigido, então um usuário
+    // com claim desatualizado se "cura" sozinho no próximo request — sem isso,
+    // o middleware devolvia para /perfil/configurar mesmo com perfil completo.
+    // Após true o claim congela: zero queries extras para usuários completos.
     async jwt({ token, user, trigger }) {
-      if (user?.id) {
-        token.userId = user.id;
-        token.profileComplete = await isProfileComplete(user.id);
-      } else if (trigger === "update" && typeof token.userId === "string") {
+      if (user?.id) token.userId = user.id;
+      if (
+        typeof token.userId === "string" &&
+        (trigger === "update" || token.profileComplete !== true)
+      ) {
         token.profileComplete = await isProfileComplete(token.userId);
       }
       return token;

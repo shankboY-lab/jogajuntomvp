@@ -6,7 +6,7 @@
 // A mesma tela serve como edição (RF-10) via /perfil/configurar?edit=1.
 
 import { useEffect, useMemo, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
@@ -32,7 +32,6 @@ import { RADIUS_OPTIONS } from "@/shared/schemas";
 import type { GeocodeResult } from "@/shared/types";
 
 function ProfileSetupForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const isEdit = searchParams.get("edit") === "1";
   const { update: updateSession } = useSession();
@@ -187,11 +186,16 @@ function ProfileSetupForm() {
         locationConsent: consent,
       };
       await saveProfile.mutateAsync(body);
-      await updateSession(); // reflete profileComplete no JWT (BE-04/FE-05)
+      // reflete profileComplete no JWT (BE-04/FE-05). O objeto vazio é
+      // OBRIGATÓRIO: sem argumento, o v5 beta omite `data` do POST e o
+      // Auth.js não dispara o trigger "update" — o claim ficava stale e o
+      // middleware devolvia o usuário para cá em loop.
+      await updateSession({});
       await qc.invalidateQueries();
       toast(isEdit ? "Perfil atualizado!" : "Perfil completo — bora jogar!", "success");
-      router.push(isEdit ? "/conta" : "/home");
-      router.refresh();
+      // navegação completa (não client-side): garante que o middleware avalie
+      // o cookie recém-emitido, sem cache do router
+      window.location.assign(isEdit ? "/conta" : "/home");
     } catch (err) {
       toast(err instanceof Error ? err.message : "Erro ao salvar o perfil", "error");
     }
