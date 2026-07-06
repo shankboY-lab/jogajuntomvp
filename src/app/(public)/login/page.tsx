@@ -8,7 +8,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Logo } from "@/components/Logo";
-import { GoogleButton, OrDivider } from "@/components/GoogleButton";
+import { GoogleAuthSection } from "@/components/GoogleButton";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { usePageView } from "@/lib/track";
@@ -22,6 +22,8 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Auth.js redireciona para cá com ?error= quando um fluxo OAuth falha
+  const urlError = searchParams.get("error");
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,8 +47,16 @@ function LoginForm() {
     <div className="flex flex-col gap-6">
       <Logo />
 
-      <GoogleButton label="Continuar com Google" />
-      <OrDivider />
+      {urlError && !error && (
+        <p
+          role="alert"
+          className="rounded-input bg-red-50 px-4 py-3 text-sm font-medium text-danger"
+        >
+          Não foi possível entrar por esse método. Tente com e-mail e senha.
+        </p>
+      )}
+
+      <GoogleAuthSection label="Continuar com Google" />
 
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         <Input

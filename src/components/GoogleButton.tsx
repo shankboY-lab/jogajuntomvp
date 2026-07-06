@@ -1,8 +1,32 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+
+/**
+ * Renderiza botão Google + divisor "ou" APENAS se o provider estiver
+ * configurado no servidor (/api/auth/providers). Sem credenciais, o botão
+ * some — evita mandar o usuário para um erro 400 do Google.
+ */
+export function GoogleAuthSection({ label }: { label: string }) {
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/providers")
+      .then((r) => r.json())
+      .then((providers) => setEnabled(Boolean(providers?.google)))
+      .catch(() => setEnabled(false));
+  }, []);
+
+  if (!enabled) return null;
+  return (
+    <div>
+      <GoogleButton label={label} />
+      <OrDivider />
+    </div>
+  );
+}
 
 export function GoogleButton({ label }: { label: string }) {
   const [loading, setLoading] = useState(false);

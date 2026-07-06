@@ -8,7 +8,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/Logo";
-import { GoogleButton, OrDivider } from "@/components/GoogleButton";
+import { GoogleAuthSection } from "@/components/GoogleButton";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { api, ApiClientError } from "@/lib/api";
@@ -46,8 +46,12 @@ export default function SignupPage() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      // auto-login após criação (BE-02)
-      await signIn("credentials", { email, password, redirect: false });
+      // auto-login após criação (BE-02); se falhar, conta existe → vai ao login
+      const res = await signIn("credentials", { email, password, redirect: false });
+      if (res?.error) {
+        router.push("/login");
+        return;
+      }
       router.push("/perfil/configurar");
       router.refresh();
     } catch (err) {
@@ -65,8 +69,7 @@ export default function SignupPage() {
     <div className="flex flex-col gap-6">
       <Logo />
 
-      <GoogleButton label="Cadastrar com Google" />
-      <OrDivider />
+      <GoogleAuthSection label="Cadastrar com Google" />
 
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         <Input

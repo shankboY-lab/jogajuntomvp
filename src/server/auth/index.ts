@@ -23,14 +23,23 @@ async function isProfileComplete(userId: string): Promise<boolean> {
   return Boolean(profile?.completedAt);
 }
 
+// Google só entra quando as credenciais existem — registrar o provider sem
+// client_id redireciona o usuário para um erro 400 do Google (bug de prod:
+// tester clicava em "Cadastrar com Google" e voltava preso no /cadastro).
+const googleConfigured = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
   providers: [
-    Google({
-      // BE-03 — mesmo e-mail → mesma conta (e-mail do Google já é verificado)
-      allowDangerousEmailAccountLinking: true,
-    }),
+    ...(googleConfigured
+      ? [
+          Google({
+            // BE-03 — mesmo e-mail → mesma conta (e-mail do Google já é verificado)
+            allowDangerousEmailAccountLinking: true,
+          }),
+        ]
+      : []),
     Credentials({
       credentials: { email: {}, password: {} },
       async authorize(credentials) {
