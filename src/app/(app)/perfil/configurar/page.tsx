@@ -28,7 +28,7 @@ import {
 } from "@/lib/hooks";
 import { api } from "@/lib/api";
 import { usePageView } from "@/lib/track";
-import { RADIUS_OPTIONS } from "@/shared/schemas";
+import { RADIUS_OPTIONS, type RadiusKm } from "@/shared/schemas";
 import type { GeocodeResult } from "@/shared/types";
 
 function ProfileSetupForm() {
@@ -180,7 +180,7 @@ function ProfileSetupForm() {
         // mantém as coordenadas salvas (RNF-07)
         lat: Number.isNaN(location.lat) ? null : location.lat,
         lng: Number.isNaN(location.lng) ? null : location.lng,
-        radiusKm: radiusKm as 2 | 5 | 10 | 25,
+        radiusKm: radiusKm as RadiusKm,
         whatsapp: whatsapp.trim() || null,
         telegram: telegram.trim() || null,
         locationConsent: consent,

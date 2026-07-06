@@ -2,7 +2,8 @@ import { z } from "zod";
 
 // Schemas Zod compartilhados entre UI e API (decisão de arquitetura §1).
 
-export const RADIUS_OPTIONS = [2, 5, 10, 25] as const;
+export const RADIUS_OPTIONS = [2, 5, 10, 25, 50] as const;
+export type RadiusKm = (typeof RADIUS_OPTIONS)[number];
 
 /** BE-02 — cadastro e-mail/senha (senha >= 8, hint do Figma v2-02) */
 export const signupSchema = z.object({
@@ -43,7 +44,7 @@ export const profileSchema = z
     // devolve coordenadas ao cliente — RNF-07)
     lat: z.number().min(-90).max(90).nullish(),
     lng: z.number().min(-180).max(180).nullish(),
-    radiusKm: z.union([z.literal(2), z.literal(5), z.literal(10), z.literal(25)]),
+    radiusKm: z.union([z.literal(2), z.literal(5), z.literal(10), z.literal(25), z.literal(50)]),
     whatsapp: z.string().trim().max(30).nullish(),
     telegram: z.string().trim().max(40).nullish(),
     locationConsent: z.boolean(),

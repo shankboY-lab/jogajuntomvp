@@ -19,7 +19,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { useSearchPlayers, useSendInterest, useProfile, useSaveProfile } from "@/lib/hooks";
 import { usePageView } from "@/lib/track";
-import { RADIUS_OPTIONS } from "@/shared/schemas";
+import { RADIUS_OPTIONS, type RadiusKm } from "@/shared/schemas";
 import type { SearchResultItem } from "@/shared/types";
 
 export default function SearchResultsPage({ params }: { params: Promise<{ bggId: string }> }) {
@@ -131,7 +131,7 @@ export default function SearchResultsPage({ params }: { params: Promise<{ bggId:
                   neighborhood: profile.neighborhood,
                   lat: null,
                   lng: null,
-                  radiusKm: radiusOverride as 2 | 5 | 10 | 25,
+                  radiusKm: radiusOverride as RadiusKm,
                   whatsapp: profile.whatsapp,
                   telegram: profile.telegram,
                   locationConsent: true,

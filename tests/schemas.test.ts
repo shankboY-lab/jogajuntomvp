@@ -57,8 +57,13 @@ describe("profileSchema", () => {
     );
   });
 
-  it("raio fora de {2,5,10,25} → falha (RF-09)", () => {
+  it("raio fora de {2,5,10,25,50} → falha (RF-09)", () => {
     expect(profileSchema.safeParse({ ...valid, radiusKm: 7 }).success).toBe(false);
+    expect(profileSchema.safeParse({ ...valid, radiusKm: 100 }).success).toBe(false);
+  });
+
+  it("raio máximo de 50 km é aceito", () => {
+    expect(profileSchema.safeParse({ ...valid, radiusKm: 50 }).success).toBe(true);
   });
 
   it("lat/lng nulos (modo edição) passam juntos, mas não separados", () => {
@@ -90,6 +95,7 @@ describe("searchQuerySchema (BE-12)", () => {
   it("aceita modos A e B com radius opcional do conjunto", () => {
     expect(searchQuerySchema.safeParse({ mode: "A", bggId: "13" }).success).toBe(true);
     expect(searchQuerySchema.safeParse({ mode: "B", bggId: 13, radius: "10" }).success).toBe(true);
+    expect(searchQuerySchema.safeParse({ mode: "A", bggId: 13, radius: 50 }).success).toBe(true);
   });
   it("rejeita raio fora do conjunto", () => {
     expect(searchQuerySchema.safeParse({ mode: "A", bggId: 13, radius: 7 }).success).toBe(false);
