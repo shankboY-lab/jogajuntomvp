@@ -1,9 +1,11 @@
+import type { Game } from "@prisma/client";
 import { prisma } from "@/server/db";
 import { ApiError } from "@/server/http";
 import { logger } from "@/server/logger";
 import { waitForToken } from "@/server/rateLimit";
+import { canAttempt, recordSuccess, recordFailure } from "@/server/bgg/breaker";
 import { parseBggSearch, parseBggThing } from "@/server/bgg/parse";
-import type { BggSearchItem, GameSummary } from "@/shared/types";
+import type { BggSearchItem, BggThing, GameSummary, GameSource } from "@/shared/types";
 
 // BE-08/BE-09 — proxy server-side obrigatório (RNF-05). O cliente NUNCA fala com a BGG.
 // Endpoint sem www — exigência do PRD.
@@ -39,10 +41,28 @@ function singleFlight<T>(key: string, fn: () => Promise<T>): Promise<T> {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * BE-18 — chamada BGG protegida pelo circuit breaker. Se o breaker estiver
+ * aberto (e fora da janela de sonda), falha rápido sem tocar a rede (RNF-16).
+ * Sucesso fecha o breaker; esgotar as retentativas conta como falha.
+ */
+async function bggFetch(path: string): Promise<string> {
+  const decision = await canAttempt();
+  if (!decision.allowed) throw new BggUnavailableError(10);
+  try {
+    const text = await bggFetchWithRetry(path);
+    await recordSuccess();
+    return text;
+  } catch (err) {
+    if (err instanceof BggUnavailableError) await recordFailure();
+    throw err;
+  }
+}
+
+/**
  * Chamada BGG com fila (token bucket distribuído) + retry com backoff
  * exponencial 1s→2s→4s em 500/503/timeout e no 202 "queued" da BGG.
  */
-async function bggFetch(path: string): Promise<string> {
+async function bggFetchWithRetry(path: string): Promise<string> {
   const backoffs = [1_000, 2_000, 4_000];
   let lastError: unknown = null;
   for (let attempt = 0; attempt <= backoffs.length; attempt++) {
@@ -82,11 +102,15 @@ export function normalizeQuery(q: string): string {
  */
 async function searchLocalCatalog(queryNorm: string): Promise<BggSearchItem[]> {
   const games = await prisma.game.findMany({
-    where: { name: { contains: queryNorm, mode: "insensitive" } },
+    where: { name: { contains: queryNorm, mode: "insensitive" }, bggId: { not: null } },
     orderBy: { name: "asc" },
     take: 20,
   });
-  return games.map((g) => ({ bggId: g.bggId, name: g.name, yearPublished: g.yearPublished }));
+  return games.map((g) => ({
+    bggId: g.bggId as number,
+    name: g.name,
+    yearPublished: g.yearPublished,
+  }));
 }
 
 /** BE-08 — busca com cache Postgres (TTL 24h) + single-flight + fila 5s. */
@@ -131,24 +155,24 @@ export async function ensureGames(bggIds: number[]): Promise<GameSummary[]> {
   if (ids.length === 0) return [];
 
   const cached = await prisma.game.findMany({ where: { bggId: { in: ids } } });
-  const cachedIds = new Set(cached.map((g) => g.bggId));
-  const missing = ids.filter((id) => !cachedIds.has(id));
+  const byBgg = new Map<number, Game>(cached.map((g) => [g.bggId as number, g]));
+  const missing = ids.filter((id) => !byBgg.has(id));
 
-  let fetched: GameSummary[] = [];
   if (missing.length > 0) {
-    fetched = await singleFlight(`thing:${missing.join(",")}`, async () => {
+    const fetched: BggThing[] = await singleFlight(`thing:${missing.join(",")}`, async () => {
       const params = new URLSearchParams({ id: missing.join(","), type: "boardgame" });
       const xml = await bggFetch(`/thing?${params.toString()}`);
       return parseBggThing(xml);
     });
     for (const game of fetched) {
-      await prisma.game.upsert({
+      const saved = await prisma.game.upsert({
         where: { bggId: game.bggId },
         create: {
           bggId: game.bggId,
           name: game.name,
           yearPublished: game.yearPublished,
           thumbnailUrl: game.thumbnailUrl,
+          source: "BGG",
         },
         update: {
           name: game.name,
@@ -157,18 +181,19 @@ export async function ensureGames(bggIds: number[]): Promise<GameSummary[]> {
           cachedAt: new Date(),
         },
       });
+      byBgg.set(game.bggId, saved);
     }
   }
 
-  const byId = new Map<number, GameSummary>();
-  for (const g of cached) {
-    byId.set(g.bggId, {
+  return ids
+    .map((id) => byBgg.get(id))
+    .filter((g): g is Game => !!g)
+    .map((g) => ({
+      gameId: g.id,
       bggId: g.bggId,
       name: g.name,
       yearPublished: g.yearPublished,
       thumbnailUrl: g.thumbnailUrl,
-    });
-  }
-  for (const g of fetched) byId.set(g.bggId, g);
-  return ids.map((id) => byId.get(id)).filter((g): g is GameSummary => !!g);
+      source: g.source as GameSource,
+    }));
 }

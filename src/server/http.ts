@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { auth } from "@/server/auth";
 import { requestLogger } from "@/server/logger";
+import { isFeatureEnabled, type FeatureFlag } from "@/shared/flags";
 
 /** Erro de API com status HTTP + código estável para o cliente. */
 export class ApiError extends Error {
@@ -26,6 +27,16 @@ export function fail(
   extra?: Record<string, unknown>,
 ) {
   return NextResponse.json({ error: { code, message, ...extra } }, { status });
+}
+
+/**
+ * INF-08 — guarda de feature flag. Com a flag desligada a rota se comporta como
+ * inexistente (404), nunca vazando a existência da feature v3.
+ */
+export function requireFeature(flag: FeatureFlag): void {
+  if (!isFeatureEnabled(flag)) {
+    throw new ApiError(404, "not_found", "Recurso não encontrado.");
+  }
 }
 
 /** Sessão obrigatória — lança 401 (tratado pelo withApi). */

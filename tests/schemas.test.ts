@@ -5,6 +5,9 @@ import {
   profileSchema,
   eventsIngestSchema,
   searchQuerySchema,
+  sanitizeName,
+  manualGameSchema,
+  groupCreateSchema,
 } from "@/shared/schemas";
 
 // QA-01 — validações compartilhadas UI/API
@@ -92,12 +95,57 @@ describe("eventsIngestSchema (BE-16)", () => {
 });
 
 describe("searchQuerySchema (BE-12)", () => {
+  // v3/DB-07 — o parâmetro passou de bggId (int) para gameId (id interno ou
+  // bggId numérico legado, ambos string). Rename coberto pelo redirect de /busca.
   it("aceita modos A e B com radius opcional do conjunto", () => {
-    expect(searchQuerySchema.safeParse({ mode: "A", bggId: "13" }).success).toBe(true);
-    expect(searchQuerySchema.safeParse({ mode: "B", bggId: 13, radius: "10" }).success).toBe(true);
-    expect(searchQuerySchema.safeParse({ mode: "A", bggId: 13, radius: 50 }).success).toBe(true);
+    expect(searchQuerySchema.safeParse({ mode: "A", gameId: "13" }).success).toBe(true);
+    expect(
+      searchQuerySchema.safeParse({ mode: "B", gameId: "clx0abc123", radius: "10" }).success,
+    ).toBe(true);
+    expect(searchQuerySchema.safeParse({ mode: "A", gameId: "13", radius: 50 }).success).toBe(true);
   });
   it("rejeita raio fora do conjunto", () => {
-    expect(searchQuerySchema.safeParse({ mode: "A", bggId: 13, radius: 7 }).success).toBe(false);
+    expect(searchQuerySchema.safeParse({ mode: "A", gameId: "13", radius: 7 }).success).toBe(false);
+  });
+});
+
+describe("sanitizeName (INF-09)", () => {
+  it("colapsa espaços e remove controle/zero-width", () => {
+    expect(sanitizeName("  Catan​   Deluxe  ")).toBe("Catan Deluxe");
+  });
+  it("mantém < > como texto (armazenado, nunca renderizado como HTML)", () => {
+    expect(sanitizeName("<b>Jogo</b>")).toBe("<b>Jogo</b>");
+  });
+});
+
+describe("manualGameSchema (BE-20)", () => {
+  it("aceita jogo válido e sanitiza o nome", () => {
+    const r = manualGameSchema.safeParse({ name: "  Meu   Jogo  ", yearPublished: 2020 });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.name).toBe("Meu Jogo");
+  });
+  it("rejeita min > max jogadores", () => {
+    expect(
+      manualGameSchema.safeParse({ name: "Jogo Teste", minPlayers: 5, maxPlayers: 2 }).success,
+    ).toBe(false);
+  });
+  it("rejeita nome com menos de 3 chars", () => {
+    expect(manualGameSchema.safeParse({ name: "ab" }).success).toBe(false);
+  });
+});
+
+describe("groupCreateSchema (BE-24)", () => {
+  it("aceita grupo válido (slots 1–9)", () => {
+    expect(
+      groupCreateSchema.safeParse({ gameId: "abc", name: "Mesa de sexta", slots: 3 }).success,
+    ).toBe(true);
+  });
+  it("rejeita slots fora de 1–9", () => {
+    expect(groupCreateSchema.safeParse({ gameId: "abc", name: "Mesa", slots: 12 }).success).toBe(
+      false,
+    );
+    expect(groupCreateSchema.safeParse({ gameId: "abc", name: "Mesa", slots: 0 }).success).toBe(
+      false,
+    );
   });
 });

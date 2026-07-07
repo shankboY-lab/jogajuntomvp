@@ -1,6 +1,7 @@
 import { prisma } from "@/server/db";
 import { ok, fail, withApi, requireUser } from "@/server/http";
 import { haversineKm, formatApproxDistance } from "@/server/geo/distance";
+import { toGameSummary } from "@/server/games/catalog";
 import type { MatchDetailResponse } from "@/shared/types";
 
 // FE-12 — dados da tela de match (v2-08). SEM contato: os links saem apenas
@@ -16,6 +17,7 @@ export const GET = withApi<{ params: Promise<{ id: string }> }>(
       include: {
         userLo: { include: { profile: true } },
         userHi: { include: { profile: true } },
+        game: true,
       },
     });
     if (!match || (match.userLoId !== userId && match.userHiId !== userId)) {
@@ -24,7 +26,6 @@ export const GET = withApi<{ params: Promise<{ id: string }> }>(
 
     const me = match.userLoId === userId ? match.userLo : match.userHi;
     const partner = match.userLoId === userId ? match.userHi : match.userLo;
-    const game = await prisma.game.findUnique({ where: { bggId: match.bggId } });
 
     const approxDistance =
       me.profile && partner.profile
@@ -43,19 +44,7 @@ export const GET = withApi<{ params: Promise<{ id: string }> }>(
         displayName: me.profile?.displayName ?? "Você",
         photoUrl: me.profile?.photoUrl ?? null,
       },
-      game: game
-        ? {
-            bggId: game.bggId,
-            name: game.name,
-            yearPublished: game.yearPublished,
-            thumbnailUrl: game.thumbnailUrl,
-          }
-        : {
-            bggId: match.bggId,
-            name: `Jogo #${match.bggId}`,
-            yearPublished: null,
-            thumbnailUrl: null,
-          },
+      game: toGameSummary(match.game),
       approxDistance,
       channels: {
         whatsapp: Boolean(partner.profile?.whatsapp),

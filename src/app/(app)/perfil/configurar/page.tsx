@@ -352,10 +352,14 @@ function ProfileSetupForm() {
         </div>
         <GameSearch
           mode="collect"
-          disabledIds={collection.map((g) => g.bggId)}
+          disabledKeys={collection.flatMap((g) =>
+            g.bggId != null ? [g.gameId, `bgg:${g.bggId}`] : [g.gameId],
+          )}
           onConfirm={async (game) => {
             try {
-              await addGame.mutateAsync(game.bggId);
+              await addGame.mutateAsync(
+                game.bggId != null ? { bggId: game.bggId } : { gameId: game.gameId },
+              );
               toast(`${game.name} adicionado à coleção!`, "success");
             } catch (err) {
               toast(err instanceof Error ? err.message : "Erro ao adicionar jogo", "error");
@@ -366,10 +370,10 @@ function ProfileSetupForm() {
           <div className="flex flex-wrap gap-2">
             {collection.map((g) => (
               <GameChip
-                key={g.bggId}
+                key={g.gameId}
                 name={g.name}
                 thumbnailUrl={g.thumbnailUrl}
-                onRemove={() => removeGame.mutate(g.bggId)}
+                onRemove={() => removeGame.mutate(g.gameId)}
               />
             ))}
           </div>

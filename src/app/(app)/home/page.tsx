@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { GameSearch } from "@/components/GameSearch";
 import { useProfile, useCollection, useInbox } from "@/lib/hooks";
 import { usePageView } from "@/lib/track";
+import { isFeatureEnabled } from "@/shared/flags";
 
 const VISIBLE_CHIPS = 6;
 
@@ -28,7 +29,7 @@ export default function HomePage() {
 
   const games = collection ?? [];
   const visible = showAll ? games : games.slice(0, VISIBLE_CHIPS);
-  const pendingCount = inbox?.counts.received ?? 0;
+  const pendingCount = inbox?.counts.badge ?? 0;
 
   return (
     <div className="flex flex-col gap-5 pb-6">
@@ -98,11 +99,11 @@ export default function HomePage() {
             <div className="flex flex-wrap gap-2">
               {visible.map((g) => (
                 <GameChip
-                  key={g.bggId}
+                  key={g.gameId}
                   name={g.name}
                   thumbnailUrl={g.thumbnailUrl}
                   active={g.intentActive}
-                  onClick={() => router.push(`/busca/${g.bggId}?mode=A`)}
+                  onClick={() => router.push(`/busca/${g.gameId}?mode=A`)}
                 />
               ))}
             </div>
@@ -135,9 +136,32 @@ export default function HomePage() {
         </div>
         <GameSearch
           mode="search"
-          onConfirm={(game) => router.push(`/busca/${game.bggId}?mode=B`)}
+          onConfirm={(game) => router.push(`/busca/${game.gameId}?mode=B`)}
         />
       </Card>
+
+      {/* Modo C — Explorar pessoas (v3-01, RF-36), atrás de FEATURE_EXPLORE */}
+      {isFeatureEnabled("explore") && (
+        <Card className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold">Buscar jogadores</h2>
+              <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
+                NOVO
+              </span>
+            </div>
+            <p className="text-xs text-muted">
+              Veja quem quer jogar perto de você — mesmo sem escolher um jogo.
+            </p>
+          </div>
+          <Link
+            href="/explorar"
+            className="shrink-0 rounded-input bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-dark"
+          >
+            Explorar →
+          </Link>
+        </Card>
+      )}
     </div>
   );
 }

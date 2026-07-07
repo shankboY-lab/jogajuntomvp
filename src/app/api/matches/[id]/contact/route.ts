@@ -21,7 +21,7 @@ export const GET = withApi<{ params: Promise<{ id: string }> }>(
     const partnerId = match.userLoId === userId ? match.userHiId : match.userLoId;
     const [partnerProfile, game] = await Promise.all([
       prisma.profile.findUnique({ where: { userId: partnerId } }),
-      prisma.game.findUnique({ where: { bggId: match.bggId } }),
+      prisma.game.findUnique({ where: { id: match.gameId } }),
     ]);
     if (!partnerProfile) {
       return fail(404, "partner_not_found", "O outro jogador não está mais disponível.");
@@ -37,7 +37,19 @@ export const GET = withApi<{ params: Promise<{ id: string }> }>(
 
     // métrica primária do PRD §2 — registrada quando o clique informa o canal
     if (channel === "whatsapp" || channel === "telegram") {
-      await track("contact_clicked", userId, { channel, matchId: match.id, bggId: match.bggId });
+      await track("contact_clicked", userId, { channel, matchId: match.id, gameId: match.gameId });
+      // BE-28 — se o match nasceu de um grupo, também conta como contato de grupo
+      const fromGroup = await prisma.groupMember.findFirst({
+        where: { matchId: match.id },
+        select: { groupId: true },
+      });
+      if (fromGroup) {
+        await track("contato_grupo_clicado", userId, {
+          channel,
+          matchId: match.id,
+          groupId: fromGroup.groupId,
+        });
+      }
     }
 
     const response: ContactResponse = { whatsappUrl, telegramUrl };

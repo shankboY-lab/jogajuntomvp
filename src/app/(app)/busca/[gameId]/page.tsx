@@ -17,14 +17,27 @@ import { TextChip } from "@/components/ui/Chip";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
+import { GroupResultCard } from "@/components/GroupResultCard";
 import { useSearchPlayers, useSendInterest, useProfile, useSaveProfile } from "@/lib/hooks";
 import { usePageView } from "@/lib/track";
+import { isFeatureEnabled } from "@/shared/flags";
 import { RADIUS_OPTIONS, type RadiusKm } from "@/shared/schemas";
-import type { SearchResultItem } from "@/shared/types";
+import type { GroupResultItem, SearchResultEntry, SearchResultItem } from "@/shared/types";
 
-export default function SearchResultsPage({ params }: { params: Promise<{ bggId: string }> }) {
-  const { bggId: bggIdParam } = use(params);
-  const bggId = Number(bggIdParam);
+function isGroup(item: SearchResultEntry): item is GroupResultItem {
+  return "type" in item && item.type === "group";
+}
+
+function countLabel(results: SearchResultEntry[]): string {
+  const groups = results.filter(isGroup).length;
+  const people = results.length - groups;
+  const parts = [`${people} ${people === 1 ? "pessoa" : "pessoas"}`];
+  if (groups > 0) parts.push(`${groups} ${groups === 1 ? "grupo" : "grupos"}`);
+  return parts.join(" e ");
+}
+
+export default function SearchResultsPage({ params }: { params: Promise<{ gameId: string }> }) {
+  const { gameId } = use(params);
   const searchParams = useSearchParams();
   const mode = (searchParams.get("mode") === "B" ? "B" : "A") as "A" | "B";
   const router = useRouter();
@@ -35,7 +48,7 @@ export default function SearchResultsPage({ params }: { params: Promise<{ bggId:
   const [radiusOverride, setRadiusOverride] = useState<number | undefined>(undefined);
   const { data, isLoading, isError, refetch, isRefetching } = useSearchPlayers({
     mode,
-    bggId,
+    gameId,
     radius: radiusOverride,
   });
   const { data: profile } = useProfile();
@@ -47,7 +60,7 @@ export default function SearchResultsPage({ params }: { params: Promise<{ bggId:
 
   const onInterest = async (item: SearchResultItem) => {
     try {
-      const result = await sendInterest.mutateAsync({ toUserId: item.userId, bggId });
+      const result = await sendInterest.mutateAsync({ toUserId: item.userId, gameId });
       if (result.outcome === "matched" && result.matchId) {
         router.push(`/match/${result.matchId}`);
       } else {
@@ -93,6 +106,16 @@ export default function SearchResultsPage({ params }: { params: Promise<{ bggId:
       <p className="rounded-input bg-cream-dark px-3.5 py-2.5 text-xs font-medium text-primary-dark">
         🔒 O contato só aparece depois do match.
       </p>
+
+      {/* FE-21 — criar grupo para este jogo (modo A, atrás de FEATURE_GROUPS) */}
+      {mode === "A" && isFeatureEnabled("groups") && (
+        <Link
+          href={`/grupos/criar?gameId=${gameId}`}
+          className="flex items-center justify-center gap-2 rounded-input border border-primary bg-white px-3.5 py-2.5 text-sm font-bold text-primary-dark hover:bg-cream-dark"
+        >
+          👥 Criar grupo para este jogo
+        </Link>
+      )}
 
       {isLoading || isRefetching ? (
         <div className="flex flex-col gap-3" aria-busy aria-live="polite">
@@ -154,33 +177,39 @@ export default function SearchResultsPage({ params }: { params: Promise<{ bggId:
         data && (
           <>
             <p className="text-sm text-muted" aria-live="polite">
-              <strong className="text-ink">{data.total}</strong>{" "}
-              {data.total === 1 ? "pessoa quer" : "pessoas querem"} jogar · por distância ·{" "}
-              {currentRadius} km
+              {countLabel(data.results)} · por distância · {currentRadius} km
             </p>
             <ul className="flex flex-col gap-3">
-              {data.results.map((item) => (
-                <li key={item.userId}>
-                  <Card className="flex items-center gap-3">
-                    <Avatar name={item.displayName} photoUrl={item.photoUrl} size={52} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold">{item.displayName}</p>
-                      <p className="text-xs text-muted">📍 {item.approxDistance}</p>
-                      {item.commonGames.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {item.commonGames.map((name) => (
-                            <TextChip key={name}>{name}</TextChip>
-                          ))}
-                          {item.commonGamesCount > item.commonGames.length && (
-                            <TextChip>+{item.commonGamesCount - item.commonGames.length}</TextChip>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <InterestButton item={item} onInterest={onInterest} />
-                  </Card>
-                </li>
-              ))}
+              {data.results.map((item) =>
+                isGroup(item) ? (
+                  <li key={item.groupId}>
+                    <GroupResultCard item={item} />
+                  </li>
+                ) : (
+                  <li key={item.userId}>
+                    <Card className="flex items-center gap-3">
+                      <Avatar name={item.displayName} photoUrl={item.photoUrl} size={52} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold">{item.displayName}</p>
+                        <p className="text-xs text-muted">📍 {item.approxDistance}</p>
+                        {item.commonGames.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {item.commonGames.map((name) => (
+                              <TextChip key={name}>{name}</TextChip>
+                            ))}
+                            {item.commonGamesCount > item.commonGames.length && (
+                              <TextChip>
+                                +{item.commonGamesCount - item.commonGames.length}
+                              </TextChip>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <InterestButton item={item} onInterest={onInterest} />
+                    </Card>
+                  </li>
+                ),
+              )}
             </ul>
           </>
         )

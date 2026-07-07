@@ -122,6 +122,15 @@ async function main() {
   console.log("🎲 Criando catálogo de jogos…");
   await prisma.game.createMany({ data: GAMES });
 
+  // v3/DB-07 — a FK de jogo agora é o id interno; mapeia bggId → games.id.
+  const gameRows = await prisma.game.findMany({ select: { id: true, bggId: true } });
+  const gameIdByBgg = new Map(gameRows.map((g) => [g.bggId as number, g.id]));
+  const gid = (bggId: number): string => {
+    const id = gameIdByBgg.get(bggId);
+    if (!id) throw new Error(`Jogo bggId ${bggId} não está no catálogo de seed`);
+    return id;
+  };
+
   const intentTtl = 7 * 24 * 60 * 60 * 1000;
   const passwordHash = await hash("senha12345", { algorithm: ARGON2ID });
 
@@ -148,12 +157,12 @@ async function main() {
   });
   const demoGames = [13, 266192, 230802, 148228];
   await prisma.userGame.createMany({
-    data: demoGames.map((bggId) => ({ userId: demo.id, bggId })),
+    data: demoGames.map((bggId) => ({ userId: demo.id, gameId: gid(bggId) })),
   });
   await prisma.playIntent.createMany({
     data: [13, 266192].map((bggId) => ({
       userId: demo.id,
-      bggId,
+      gameId: gid(bggId),
       status: "ACTIVE" as const,
       expiresAt: new Date(Date.now() + intentTtl),
     })),
@@ -189,7 +198,9 @@ async function main() {
         },
       },
     });
-    await prisma.userGame.createMany({ data: games.map((bggId) => ({ userId: user.id, bggId })) });
+    await prisma.userGame.createMany({
+      data: games.map((bggId) => ({ userId: user.id, gameId: gid(bggId) })),
+    });
 
     // ~70% têm intent ativo em 1-2 jogos da coleção; alguns expirados p/ testar DB-04
     const intentGames = pick(games, rand() > 0.3 ? (rand() > 0.5 ? 2 : 1) : 0);
@@ -198,7 +209,7 @@ async function main() {
       await prisma.playIntent.create({
         data: {
           userId: user.id,
-          bggId,
+          gameId: gid(bggId),
           status: "ACTIVE",
           expiresAt: expired
             ? new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -216,34 +227,34 @@ async function main() {
   // pedidos pendentes PARA o demo (inbox recebidos)
   for (const u of catanPlayers.slice(0, 2)) {
     await prisma.playIntent.upsert({
-      where: { userId_bggId: { userId: u.id, bggId: 13 } },
+      where: { userId_gameId: { userId: u.id, gameId: gid(13) } },
       create: {
         userId: u.id,
-        bggId: 13,
+        gameId: gid(13),
         status: "ACTIVE",
         expiresAt: new Date(Date.now() + intentTtl),
       },
       update: { status: "ACTIVE", expiresAt: new Date(Date.now() + intentTtl) },
     });
     await prisma.interestRequest.create({
-      data: { fromUserId: u.id, toUserId: demo.id, bggId: 13 },
+      data: { fromUserId: u.id, toUserId: demo.id, gameId: gid(13) },
     });
   }
 
   // pedido enviado PELO demo (inbox enviados)
   if (wingspanPlayers[0]) {
     await prisma.playIntent.upsert({
-      where: { userId_bggId: { userId: wingspanPlayers[0].id, bggId: 266192 } },
+      where: { userId_gameId: { userId: wingspanPlayers[0].id, gameId: gid(266192) } },
       create: {
         userId: wingspanPlayers[0].id,
-        bggId: 266192,
+        gameId: gid(266192),
         status: "ACTIVE",
         expiresAt: new Date(Date.now() + intentTtl),
       },
       update: { status: "ACTIVE", expiresAt: new Date(Date.now() + intentTtl) },
     });
     await prisma.interestRequest.create({
-      data: { fromUserId: demo.id, toUserId: wingspanPlayers[0].id, bggId: 266192 },
+      data: { fromUserId: demo.id, toUserId: wingspanPlayers[0].id, gameId: gid(266192) },
     });
   }
 
@@ -252,14 +263,14 @@ async function main() {
   const matchGames = [13, 266192];
   for (let i = 0; i < matchPartners.length; i++) {
     const partner = matchPartners[i];
-    const bggId = matchGames[i];
+    const gameId = gid(matchGames[i]);
     const [lo, hi] = demo.id < partner.id ? [demo.id, partner.id] : [partner.id, demo.id];
     await prisma.interestRequest.upsert({
-      where: { fromUserId_toUserId_bggId: { fromUserId: partner.id, toUserId: demo.id, bggId } },
-      create: { fromUserId: partner.id, toUserId: demo.id, bggId, status: "ACCEPTED" },
+      where: { fromUserId_toUserId_gameId: { fromUserId: partner.id, toUserId: demo.id, gameId } },
+      create: { fromUserId: partner.id, toUserId: demo.id, gameId, status: "ACCEPTED" },
       update: { status: "ACCEPTED" },
     });
-    await prisma.match.create({ data: { userLoId: lo, userHiId: hi, bggId } });
+    await prisma.match.create({ data: { userLoId: lo, userHiId: hi, gameId } });
   }
 
   console.log("✅ Seed completo: 31 usuários, catálogo, intents, pedidos e 2 matches.");

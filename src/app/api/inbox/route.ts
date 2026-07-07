@@ -1,7 +1,17 @@
 import { prisma } from "@/server/db";
 import { ok, withApi, requireUser } from "@/server/http";
 import { haversineKm, formatApproxDistance } from "@/server/geo/distance";
-import type { InboxResponse, InboxRequestItem, InboxMatchItem, GameSummary } from "@/shared/types";
+import { toGameSummary } from "@/server/games/catalog";
+import { isFeatureEnabled } from "@/shared/flags";
+import type {
+  InboxResponse,
+  InboxRequestItem,
+  InboxMatchItem,
+  InboxGroupRequestReceived,
+  InboxGroupRequestSent,
+  InboxNotification,
+  GroupRequestState,
+} from "@/shared/types";
 
 // BE-14 — GET /api/inbox: recebidos, enviados, matches (RF-23).
 // Distância aproximada calculada e formatada no servidor; contato NUNCA aqui (RNF-09).
@@ -14,12 +24,12 @@ export const GET = withApi("inbox", async () => {
   const [received, sent, matches] = await Promise.all([
     prisma.interestRequest.findMany({
       where: { toUserId: userId, status: "PENDING" },
-      include: { fromUser: { include: { profile: true } } },
+      include: { fromUser: { include: { profile: true } }, game: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.interestRequest.findMany({
       where: { fromUserId: userId, status: "PENDING" },
-      include: { toUser: { include: { profile: true } } },
+      include: { toUser: { include: { profile: true } }, game: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.match.findMany({
@@ -27,37 +37,11 @@ export const GET = withApi("inbox", async () => {
       include: {
         userLo: { include: { profile: true } },
         userHi: { include: { profile: true } },
+        game: true,
       },
       orderBy: { createdAt: "desc" },
     }),
   ]);
-
-  const gameIds = [
-    ...new Set([
-      ...received.map((r) => r.bggId),
-      ...sent.map((r) => r.bggId),
-      ...matches.map((m) => m.bggId),
-    ]),
-  ];
-  const games = await prisma.game.findMany({ where: { bggId: { in: gameIds } } });
-  const gameById = new Map<number, GameSummary>(
-    games.map((g) => [
-      g.bggId,
-      {
-        bggId: g.bggId,
-        name: g.name,
-        yearPublished: g.yearPublished,
-        thumbnailUrl: g.thumbnailUrl,
-      },
-    ]),
-  );
-  const fallbackGame = (bggId: number): GameSummary =>
-    gameById.get(bggId) ?? {
-      bggId,
-      name: `Jogo #${bggId}`,
-      yearPublished: null,
-      thumbnailUrl: null,
-    };
 
   const distanceTo = (lat?: number | null, lng?: number | null): string => {
     if (!myProfile || lat == null || lng == null) return "";
@@ -77,7 +61,7 @@ export const GET = withApi("inbox", async () => {
   const receivedItems: InboxRequestItem[] = received.map((r) => ({
     id: r.id,
     user: toUserSummary(r.fromUser),
-    game: fallbackGame(r.bggId),
+    game: toGameSummary(r.game),
     approxDistance: distanceTo(r.fromUser.profile?.lat, r.fromUser.profile?.lng),
     createdAt: r.createdAt.toISOString(),
   }));
@@ -85,7 +69,7 @@ export const GET = withApi("inbox", async () => {
   const sentItems: InboxRequestItem[] = sent.map((r) => ({
     id: r.id,
     user: toUserSummary(r.toUser),
-    game: fallbackGame(r.bggId),
+    game: toGameSummary(r.game),
     approxDistance: distanceTo(r.toUser.profile?.lat, r.toUser.profile?.lng),
     createdAt: r.createdAt.toISOString(),
   }));
@@ -95,17 +79,79 @@ export const GET = withApi("inbox", async () => {
     return {
       matchId: m.id,
       user: toUserSummary(partner),
-      game: fallbackGame(m.bggId),
+      game: toGameSummary(m.game),
       approxDistance: distanceTo(partner.profile?.lat, partner.profile?.lng),
       createdAt: m.createdAt.toISOString(),
     };
   });
 
+  // BE-27 — seções de grupo + notificações (só com a flag; v2 fica intacto)
+  let groupReceived: InboxGroupRequestReceived[] = [];
+  let groupSent: InboxGroupRequestSent[] = [];
+  let notifItems: InboxNotification[] = [];
+
+  if (isFeatureEnabled("groups")) {
+    const [received, sent, notifs] = await Promise.all([
+      prisma.groupJoinRequest.findMany({
+        where: { status: "PENDING", group: { creatorId: userId } },
+        include: {
+          fromUser: { include: { profile: true } },
+          group: { include: { game: true, _count: { select: { members: true } } } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.groupJoinRequest.findMany({
+        where: { fromUserId: userId, status: { in: ["PENDING", "ACCEPTED"] } },
+        include: { group: { include: { game: true } } },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.notification.findMany({
+        where: { userId, readAt: null },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      }),
+    ]);
+
+    groupReceived = received.map((r) => ({
+      requestId: r.id,
+      groupId: r.groupId,
+      groupName: r.group.name,
+      game: toGameSummary(r.group.game),
+      user: toUserSummary(r.fromUser),
+      slotsTotal: r.group.slots,
+      slotsFilled: r.group._count.members,
+      createdAt: r.createdAt.toISOString(),
+    }));
+    groupSent = sent.map((r) => ({
+      requestId: r.id,
+      groupId: r.groupId,
+      groupName: r.group.name,
+      game: toGameSummary(r.group.game),
+      state: (r.status === "PENDING" ? "pending" : "accepted") as GroupRequestState,
+      createdAt: r.createdAt.toISOString(),
+    }));
+    notifItems = notifs.map((n) => ({
+      id: n.id,
+      type: n.type,
+      payload: n.payload as Record<string, unknown>,
+      createdAt: n.createdAt.toISOString(),
+    }));
+  }
+
+  const badge = receivedItems.length + groupReceived.length + notifItems.length;
   const response: InboxResponse = {
     received: receivedItems,
     sent: sentItems,
     matches: matchItems,
-    counts: { received: receivedItems.length, matches: matchItems.length },
+    groupRequests: { received: groupReceived, sent: groupSent },
+    notifications: notifItems,
+    counts: {
+      received: receivedItems.length,
+      matches: matchItems.length,
+      groupRequests: groupReceived.length,
+      notifications: notifItems.length,
+      badge,
+    },
   };
   return ok(response);
 });

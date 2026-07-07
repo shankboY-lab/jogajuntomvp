@@ -1,16 +1,16 @@
 import { prisma } from "@/server/db";
 import { ok, withApi, requireUser } from "@/server/http";
-import { bggIdSchema } from "@/shared/schemas";
+import { gameIdSchema } from "@/shared/schemas";
 
-// BE-11 — DELETE /api/intents/:bggId cancela o "quero jogar" (RF-21)
-export const DELETE = withApi<{ params: Promise<{ bggId: string }> }>(
+// BE-11 — DELETE /api/intents/:gameId cancela o "quero jogar" (RF-21).
+export const DELETE = withApi<{ params: Promise<{ gameId: string }> }>(
   "intents.cancel",
   async (_req, ctx) => {
     const { userId } = await requireUser();
-    const bggId = bggIdSchema.parse((await ctx.params).bggId);
+    const gameId = gameIdSchema.parse((await ctx.params).gameId);
 
     await prisma.playIntent.updateMany({
-      where: { userId, bggId, status: "ACTIVE" },
+      where: { userId, gameId, status: "ACTIVE" },
       data: { status: "CANCELLED" },
     });
     return ok({ cancelled: true });

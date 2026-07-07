@@ -26,6 +26,28 @@ enum RequestStatus {
   EXPIRED
 }
 
+// v3/RF-34 — origem do jogo no catálogo. USER_CREATED = cadastro manual (D2).
+enum GameSource {
+  BGG
+  USER_CREATED
+}
+
+// v3/DB-09 — ciclo de vida de grupo (RF-41..49).
+enum GroupStatus {
+  OPEN
+  FULL
+  CANCELLED
+  EXPIRED
+}
+
+enum GroupRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  AUTO_DECLINED
+  CANCELLED
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -43,6 +65,11 @@ model User {
   receivedRequests InterestRequest[] @relation("received")
   matchesAsLo      Match[]           @relation("matchLo")
   matchesAsHi      Match[]           @relation("matchHi")
+  createdGames     Game[]            @relation("createdGames") // v3 — jogos manuais (RF-34/54)
+  createdGroups    Group[]           @relation("createdGroups") // v3 — grupos criados (RF-41)
+  groupMemberships GroupMember[]     // v3
+  groupRequests    GroupJoinRequest[] @relation("groupRequests") // v3
+  notifications    Notification[]    // v3
   events           Event[]
 
   @@map("users")
@@ -89,30 +116,43 @@ model Profile {
   @@map("profiles")
 }
 
-// cache canônico BGG (RF-13)
+// Catálogo canônico (v3/DB-07). A PK passa a ser `id` interno (cuid); `bggId`
+// vira atributo de origem opcional único (RF-34). Jogos BGG e USER_CREATED
+// coexistem — `id` é a única FK de jogo no resto do schema (princípio v3 #6).
 model Game {
-  bggId         Int      @id @map("bgg_id")
+  id            String     @id @default(cuid())
+  bggId         Int?       @unique @map("bgg_id") // era a PK; agora origem opcional
   name          String
-  yearPublished Int?     @map("year_published")
-  thumbnailUrl  String?  @map("thumbnail_url")
-  cachedAt      DateTime @default(now()) @map("cached_at")
+  yearPublished Int?       @map("year_published")
+  thumbnailUrl  String?    @map("thumbnail_url")
+  minPlayers    Int?       @map("min_players") // v3 — cadastro manual (RF-32)
+  maxPlayers    Int?       @map("max_players")
+  source        GameSource @default(BGG)
+  createdById   String?    @map("created_by_id") // autor se USER_CREATED; anonimizável (RF-54)
+  cachedAt      DateTime   @default(now()) @map("cached_at")
 
+  createdBy User?             @relation("createdGames", fields: [createdById], references: [id], onDelete: SetNull)
   userGames UserGame[]
   intents   PlayIntent[]
+  requests  InterestRequest[]
+  matches   Match[]
+  groups    Group[]
 
+  @@index([name]) // + índice GIN gin_trgm_ops via SQL raw na migration (DB-08)
+  @@index([createdById])
   @@map("games")
 }
 
 // coleção (RF-14)
 model UserGame {
   userId  String   @map("user_id")
-  bggId   Int      @map("bgg_id")
+  gameId  String   @map("game_id")
   addedAt DateTime @default(now()) @map("added_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  game Game @relation(fields: [bggId], references: [bggId], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  @@id([userId, bggId])
+  @@id([userId, gameId])
   @@map("user_games")
 }
 
@@ -120,16 +160,16 @@ model UserGame {
 model PlayIntent {
   id        String       @id @default(cuid())
   userId    String       @map("user_id")
-  bggId     Int          @map("bgg_id")
+  gameId    String       @map("game_id")
   status    IntentStatus @default(ACTIVE)
   expiresAt DateTime     @map("expires_at") // premissa: now()+7d
   createdAt DateTime     @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  game Game @relation(fields: [bggId], references: [bggId], onDelete: Cascade)
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, bggId])
-  @@index([bggId, status, expiresAt])
+  @@unique([userId, gameId])
+  @@index([gameId, status, expiresAt])
   @@map("play_intents")
 }
 
@@ -138,14 +178,15 @@ model InterestRequest {
   id         String        @id @default(cuid())
   fromUserId String        @map("from_user_id")
   toUserId   String        @map("to_user_id")
-  bggId      Int           @map("bgg_id")
+  gameId     String        @map("game_id")
   status     RequestStatus @default(PENDING)
   createdAt  DateTime      @default(now()) @map("created_at")
 
   fromUser User @relation("sent", fields: [fromUserId], references: [id], onDelete: Cascade)
   toUser   User @relation("received", fields: [toUserId], references: [id], onDelete: Cascade)
+  game     Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  @@unique([fromUserId, toUserId, bggId]) // idempotência
+  @@unique([fromUserId, toUserId, gameId]) // idempotência
   @@index([toUserId, status])
   @@map("interest_requests")
 }
@@ -155,14 +196,83 @@ model Match {
   id        String   @id @default(cuid())
   userLoId  String   @map("user_lo_id")
   userHiId  String   @map("user_hi_id")
-  bggId     Int      @map("bgg_id")
+  gameId    String   @map("game_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  userLo User @relation("matchLo", fields: [userLoId], references: [id], onDelete: Cascade)
-  userHi User @relation("matchHi", fields: [userHiId], references: [id], onDelete: Cascade)
+  userLo       User          @relation("matchLo", fields: [userLoId], references: [id], onDelete: Cascade)
+  userHi       User          @relation("matchHi", fields: [userHiId], references: [id], onDelete: Cascade)
+  game         Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  groupMembers GroupMember[]
 
-  @@unique([userLoId, userHiId, bggId])
+  @@unique([userLoId, userHiId, gameId])
   @@map("matches")
+}
+
+// v3/DB-09 — grupo "mesa" 1-para-N (RF-41..50). Vagas com transação (RNF-14).
+model Group {
+  id        String      @id @default(cuid())
+  creatorId String      @map("creator_id")
+  gameId    String      @map("game_id")
+  name      String // 3–50 chars (RF-41)
+  slots     Int // 1..9, CHECK na migration (D5)
+  status    GroupStatus @default(OPEN)
+  expiresAt DateTime    @map("expires_at") // now()+GROUP_TTL_DAYS (RF-49)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  creator  User               @relation("createdGroups", fields: [creatorId], references: [id], onDelete: Cascade)
+  game     Game               @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  members  GroupMember[]
+  requests GroupJoinRequest[]
+
+  @@index([gameId, status])
+  @@index([status, expiresAt])
+  @@index([creatorId, status]) // limite de 3 abertos (RF-50)
+  @@map("groups")
+}
+
+model GroupMember {
+  groupId  String   @map("group_id")
+  userId   String   @map("user_id")
+  matchId  String   @map("match_id") // match criador↔membro criado no aceite (RF-44)
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@map("group_members")
+}
+
+model GroupJoinRequest {
+  id         String             @id @default(cuid())
+  groupId    String             @map("group_id")
+  fromUserId String             @map("from_user_id")
+  status     GroupRequestStatus @default(PENDING)
+  createdAt  DateTime           @default(now()) @map("created_at")
+
+  group    Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  fromUser User  @relation("groupRequests", fields: [fromUserId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, fromUserId]) // idempotência (RF-51)
+  @@index([groupId, status])
+  @@map("group_join_requests")
+}
+
+// v3/DB-09 — notificações de ciclo de vida de grupo (RF-45/47/48/49), inbox.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  type      String // group_full | group_cancelled | group_expired | member_left | member_removed
+  payload   Json      @default("{}") // {groupId, groupName, gameId, ...}
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
 }
 
 // funil (RF-26, RNF-10)
@@ -203,4 +313,17 @@ model RateLimitBucket {
   updatedAt DateTime @map("updated_at")
 
   @@map("rate_limit_buckets")
+}
+
+// v3/BE-18 — circuit breaker do proxy BGG. Estado compartilhado em Postgres
+// (serverless: instâncias concorrentes leem o mesmo breaker). O breaker aberto
+// é o ÚNICO gatilho que habilita o cadastro manual (D2), validado server-side.
+model CircuitBreaker {
+  key       String    @id
+  state     String    @default("closed") // closed | open | half_open
+  failures  Int       @default(0)
+  openedAt  DateTime? @map("opened_at")
+  updatedAt DateTime  @default(now()) @map("updated_at")
+
+  @@map("circuit_breakers")
 }

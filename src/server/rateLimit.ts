@@ -84,3 +84,25 @@ export async function assertIpLimit(
     });
   }
 }
+
+/**
+ * INF-09/RNF-12 — rate limit por usuário (ex.: 5 jogos manuais/dia, burst de
+ * pedidos de grupo). Mesmo token bucket distribuído, chaveado por usuário.
+ */
+export async function assertUserLimit(
+  userId: string,
+  route: string,
+  capacity: number,
+  perSeconds: number,
+  message = "Você atingiu o limite. Tente novamente mais tarde.",
+): Promise<void> {
+  const res = await takeToken(`user:${route}:${userId}`, {
+    capacity,
+    refillPerSec: capacity / perSeconds,
+  });
+  if (!res.allowed) {
+    throw new ApiError(429, "rate_limited", message, {
+      retryAfter: Math.ceil(res.retryAfterMs / 1000),
+    });
+  }
+}

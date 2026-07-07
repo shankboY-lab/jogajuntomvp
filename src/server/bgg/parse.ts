@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import type { BggSearchItem, GameSummary } from "@/shared/types";
+import type { BggSearchItem, BggThing } from "@/shared/types";
 
 // BE-08/BE-09 — parse do XML da BGG XML API2 (fixtures reais em tests/fixtures).
 
@@ -49,10 +49,10 @@ export function parseBggSearch(xml: string): BggSearchItem[] {
 }
 
 /** thing?id=1,2,... → detalhes p/ desambiguação (v2-04): nome, ano, capa */
-export function parseBggThing(xml: string): GameSummary[] {
+export function parseBggThing(xml: string): BggThing[] {
   const doc = parser.parse(xml);
   const items = asArray(doc?.items?.item);
-  const results: GameSummary[] = [];
+  const results: BggThing[] = [];
   for (const item of items) {
     const bggId = Number(item["@_id"]);
     const name = primaryName(item.name);

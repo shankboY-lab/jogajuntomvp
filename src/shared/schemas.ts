@@ -93,30 +93,113 @@ export type ProfileInput = z.infer<typeof profileSchema>;
 
 /** BE-10/BE-11 */
 export const bggIdSchema = z.coerce.number().int().positive();
-export const collectionAddSchema = z.object({ bggId: bggIdSchema });
-export const intentCreateSchema = z.object({ bggId: bggIdSchema });
+/** v3/DB-07 — chave canônica de jogo é o `id` interno (cuid). */
+export const gameIdSchema = z.string().min(1).max(40);
 
-/** BE-12 — busca (modos A e B) */
+/**
+ * Adição à coleção aceita `gameId` interno (jogos USER_CREATED e resultados já
+ * materializados) OU `bggId` (fluxo BGG v2 — resolvido p/ id interno no servidor).
+ */
+export const collectionAddSchema = z.union([
+  z.object({ gameId: gameIdSchema }),
+  z.object({ bggId: bggIdSchema }),
+]);
+export const intentCreateSchema = z.object({ gameId: gameIdSchema });
+
+/** BE-12 — busca (modos A e B). `gameId` aceita id interno ou bggId legado. */
 export const searchQuerySchema = z.object({
   mode: z.enum(["A", "B"]),
-  bggId: bggIdSchema,
+  gameId: gameIdSchema,
   radius: z.coerce
     .number()
     .refine((r) => (RADIUS_OPTIONS as readonly number[]).includes(r), "Raio inválido")
     .optional(),
 });
 
+/** BE-22 — busca modo C "explorar" (sem jogo; paginada). */
+export const exploreQuerySchema = z.object({
+  radius: z.coerce
+    .number()
+    .refine((r) => (RADIUS_OPTIONS as readonly number[]).includes(r), "Raio inválido")
+    .optional(),
+  page: z.coerce.number().int().min(0).default(0),
+});
+
 /** BE-13 */
 export const interestCreateSchema = z.object({
   toUserId: z.string().min(1),
-  bggId: bggIdSchema,
+  gameId: gameIdSchema,
 });
 export const interestRespondSchema = z.object({
   action: z.enum(["accept", "decline"]),
 });
 
-/** BE-16 — enum de eventos do funil */
+/**
+ * INF-09 — sanitização de nomes de jogo/grupo: remove caracteres de controle e
+ * zero-width, colapsa espaços e faz trim. Sem HTML (armazenado como texto).
+ */
+export function sanitizeName(raw: string): string {
+  let out = "";
+  for (const ch of raw) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) continue; // controle
+    if (code >= 0x200b && code <= 0x200d) continue; // zero-width space/joiner
+    if (code === 0xfeff) continue; // BOM / zero-width no-break
+    out += ch;
+  }
+  return out.replace(/\s+/g, " ").trim();
+}
+
+const currentYear = new Date().getFullYear();
+
+/** BE-20 — cadastro manual de jogo (RF-32/34). name 3–80 sanitizado. */
+export const manualGameSchema = z
+  .object({
+    name: z
+      .string()
+      .transform(sanitizeName)
+      .refine((v) => v.length >= 3 && v.length <= 80, "O nome deve ter de 3 a 80 caracteres."),
+    yearPublished: z.coerce
+      .number()
+      .int()
+      .min(1900, "Ano muito antigo")
+      .max(currentYear + 1, "Ano no futuro")
+      .nullish(),
+    minPlayers: z.coerce.number().int().min(1).max(99).nullish(),
+    maxPlayers: z.coerce.number().int().min(1).max(99).nullish(),
+    coverUrl: z.string().url().nullish(),
+    force: z.boolean().optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.minPlayers != null && d.maxPlayers != null && d.minPlayers > d.maxPlayers) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["maxPlayers"],
+        message: "O máximo de jogadores não pode ser menor que o mínimo.",
+      });
+    }
+  });
+export type ManualGameInput = z.infer<typeof manualGameSchema>;
+
+/** BE-24 — criação de grupo (RF-41). name 3–50 sanitizado, slots 1–9 (D5). */
+export const groupCreateSchema = z.object({
+  gameId: gameIdSchema,
+  name: z
+    .string()
+    .transform(sanitizeName)
+    .refine((v) => v.length >= 3 && v.length <= 50, "O nome deve ter de 3 a 50 caracteres."),
+  slots: z.coerce.number().int().min(1, "Mínimo 1 vaga").max(9, "Máximo 9 vagas"),
+});
+export type GroupCreateInput = z.infer<typeof groupCreateSchema>;
+
+/** BE-25 — aceitar/recusar pedido de entrada em grupo. */
+export const groupRequestRespondSchema = z.object({
+  action: z.enum(["accept", "decline"]),
+});
+
+/** BE-16 + BE-28 — enum de eventos do funil (v2 + v3). */
 export const EVENT_NAMES = [
+  // v2
   "signup_completed",
   "profile_completed",
   "game_added",
@@ -128,6 +211,28 @@ export const EVENT_NAMES = [
   "interest_declined",
   "contact_clicked",
   "page_view",
+  // v3 F1 — catálogo resiliente + cadastro manual
+  "bgg_fallback_acionado",
+  "busca_reserva_realizada",
+  "jogo_manual_criado",
+  "jogo_manual_em_match",
+  // v3 F2 — explorar pessoas
+  "busca_explorar_realizada",
+  // v3 F3 — grupos
+  "grupo_criado",
+  "grupo_exibido_em_busca",
+  "pedido_entrada_enviado",
+  "pedido_aceito",
+  "pedido_recusado",
+  "grupo_completo",
+  "membro_saiu",
+  "membro_removido",
+  "grupo_cancelado",
+  "grupo_expirado",
+  "contato_grupo_clicado",
+  // v3 — eventos de UI que o servidor não enxerga (FE-25)
+  "cta_manual_clicado",
+  "sheet_jogo_aberto",
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 

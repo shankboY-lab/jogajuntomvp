@@ -17,38 +17,50 @@ function orderPair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
 }
 
+/**
+ * BE-28 — evento de funil quando um match se forma sobre um jogo cadastrado
+ * manualmente (RF-35, guarda-corpo F1: mede se jogos da comunidade viram partida).
+ */
+export async function trackManualGameMatch(userId: string, gameId: string): Promise<void> {
+  const game = await prisma.game.findUnique({ where: { id: gameId }, select: { source: true } });
+  if (game?.source === "USER_CREATED") {
+    await track("jogo_manual_em_match", userId, { gameId });
+  }
+}
+
 export type SendInterestResult =
   { outcome: "pending"; requestId: string } | { outcome: "matched"; matchId: string };
 
-async function createMatchIdempotent(
+/**
+ * Cria (ou reaproveita) o Match do par no jogo, dentro de uma transação.
+ * Idempotente via unique (user_lo,user_hi,game). Reutilizado pelo aceite de
+ * grupo (RF-44) — "match" segue sendo a única porta para o contato.
+ */
+export async function createMatchIdempotent(
   tx: Prisma.TransactionClient,
   userA: string,
   userB: string,
-  bggId: number,
+  gameId: string,
 ): Promise<string> {
   const [userLoId, userHiId] = orderPair(userA, userB);
-  try {
-    const match = await tx.match.create({ data: { userLoId, userHiId, bggId } });
-    return match.id;
-  } catch (err) {
-    // unique violada → match já existe (idempotência, DB-02)
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      const existing = await tx.match.findUnique({
-        where: { userLoId_userHiId_bggId: { userLoId, userHiId, bggId } },
-      });
-      if (existing) return existing.id;
-    }
-    throw err;
-  }
+  // Verifica ANTES de inserir: um INSERT que viola unique aborta a transação
+  // inteira no Postgres (25P02), inutilizando o catch dentro do mesmo `tx`.
+  // O par (criador↔membro) pode já ter match de outro grupo/convite (idempotência).
+  const existing = await tx.match.findUnique({
+    where: { userLoId_userHiId_gameId: { userLoId, userHiId, gameId } },
+  });
+  if (existing) return existing.id;
+  const match = await tx.match.create({ data: { userLoId, userHiId, gameId } });
+  return match.id;
 }
 
 /** POST /api/interests — envia pedido; recíproco → match imediato. */
 export async function sendInterest(input: {
   fromUserId: string;
   toUserId: string;
-  bggId: number;
+  gameId: string;
 }): Promise<SendInterestResult> {
-  const { fromUserId, toUserId, bggId } = input;
+  const { fromUserId, toUserId, gameId } = input;
   if (fromUserId === toUserId) {
     throw new ApiError(422, "self_interest", "Você não pode enviar convite para si mesmo.");
   }
@@ -58,7 +70,7 @@ export async function sendInterest(input: {
       async (tx) => {
         // (1) destinatário precisa de intent ativo no jogo
         const targetIntent = await tx.playIntent.findUnique({
-          where: { userId_bggId: { userId: toUserId, bggId } },
+          where: { userId_gameId: { userId: toUserId, gameId } },
         });
         if (
           !targetIntent ||
@@ -75,20 +87,20 @@ export async function sendInterest(input: {
         // remetente também sinaliza "quero jogar" (renova/cria o próprio intent)
         const expiresAt = new Date(Date.now() + intentTtlDays() * 24 * 60 * 60 * 1000);
         await tx.playIntent.upsert({
-          where: { userId_bggId: { userId: fromUserId, bggId } },
-          create: { userId: fromUserId, bggId, status: "ACTIVE", expiresAt },
+          where: { userId_gameId: { userId: fromUserId, gameId } },
+          create: { userId: fromUserId, gameId, status: "ACTIVE", expiresAt },
           update: { status: "ACTIVE", expiresAt },
         });
 
         // reenvio → no-op (idempotência RF-22)
         const existing = await tx.interestRequest.findUnique({
-          where: { fromUserId_toUserId_bggId: { fromUserId, toUserId, bggId } },
+          where: { fromUserId_toUserId_gameId: { fromUserId, toUserId, gameId } },
         });
         if (existing) {
           if (existing.status === "ACCEPTED") {
             const [lo, hi] = orderPair(fromUserId, toUserId);
             const match = await tx.match.findUnique({
-              where: { userLoId_userHiId_bggId: { userLoId: lo, userHiId: hi, bggId } },
+              where: { userLoId_userHiId_gameId: { userLoId: lo, userHiId: hi, gameId } },
             });
             if (match) return { outcome: "matched" as const, matchId: match.id };
           }
@@ -111,7 +123,7 @@ export async function sendInterest(input: {
         // (2) pedido inverso PENDING → aceite recíproco = match imediato
         const inverse = await tx.interestRequest.findUnique({
           where: {
-            fromUserId_toUserId_bggId: { fromUserId: toUserId, toUserId: fromUserId, bggId },
+            fromUserId_toUserId_gameId: { fromUserId: toUserId, toUserId: fromUserId, gameId },
           },
         });
         if (inverse && inverse.status === "PENDING") {
@@ -119,13 +131,13 @@ export async function sendInterest(input: {
             where: { id: inverse.id },
             data: { status: "ACCEPTED" },
           });
-          const matchId = await createMatchIdempotent(tx, fromUserId, toUserId, bggId);
+          const matchId = await createMatchIdempotent(tx, fromUserId, toUserId, gameId);
           return { outcome: "matched" as const, matchId };
         }
 
         // (3) senão cria PENDING
         const request = await tx.interestRequest.create({
-          data: { fromUserId, toUserId, bggId },
+          data: { fromUserId, toUserId, gameId },
         });
         return { outcome: "pending" as const, requestId: request.id };
       },
@@ -145,9 +157,10 @@ export async function sendInterest(input: {
   }
 
   if (result.outcome === "matched") {
-    await track("match_created", fromUserId, { bggId, matchId: result.matchId });
+    await track("match_created", fromUserId, { gameId, matchId: result.matchId });
+    await trackManualGameMatch(fromUserId, gameId);
   } else {
-    await track("interest_sent", fromUserId, { bggId });
+    await track("interest_sent", fromUserId, { gameId });
   }
   return result;
 }
@@ -173,7 +186,7 @@ export async function respondToInterest(input: {
           const [lo, hi] = orderPair(request.fromUserId, request.toUserId);
           const match = await tx.match.findUnique({
             where: {
-              userLoId_userHiId_bggId: { userLoId: lo, userHiId: hi, bggId: request.bggId },
+              userLoId_userHiId_gameId: { userLoId: lo, userHiId: hi, gameId: request.gameId },
             },
           });
           if (match) return { outcome: "matched" as const, matchId: match.id };
@@ -197,7 +210,7 @@ export async function respondToInterest(input: {
         tx,
         request.fromUserId,
         request.toUserId,
-        request.bggId,
+        request.gameId,
       );
       return { outcome: "matched" as const, matchId };
     },
@@ -206,6 +219,11 @@ export async function respondToInterest(input: {
 
   if (result.outcome === "matched") {
     await track("match_created", userId, { requestId, matchId: result.matchId });
+    const req = await prisma.interestRequest.findUnique({
+      where: { id: requestId },
+      select: { gameId: true },
+    });
+    if (req) await trackManualGameMatch(userId, req.gameId);
   } else {
     await track("interest_declined", userId, { requestId });
   }

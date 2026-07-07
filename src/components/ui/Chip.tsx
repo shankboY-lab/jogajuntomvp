@@ -67,9 +67,22 @@ export function GameChip({
   );
 }
 
-export function TextChip({ children }: { children: React.ReactNode }) {
+export function TextChip({
+  children,
+  highlight = false,
+}: {
+  children: React.ReactNode;
+  /** v3 — jogo em comum destacado com borda primary (modo C, v3-02) */
+  highlight?: boolean;
+}) {
   return (
-    <span className="inline-flex items-center rounded-full bg-cream-dark px-2.5 py-1 text-xs font-medium text-primary-dark">
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+        highlight
+          ? "border border-primary bg-cream-dark text-primary-dark"
+          : "bg-cream-dark text-primary-dark"
+      }`}
+    >
       {children}
     </span>
   );
